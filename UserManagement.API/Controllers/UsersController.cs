@@ -1,81 +1,81 @@
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using UserManagement.Application.DTOs;
-using UserManagement.Application.Services;
+using UserManagement.Application.Features.Users.Commands.CreateUser;
+using UserManagement.Application.Features.Users.Commands.DeleteUser;
+using UserManagement.Application.Features.Users.Commands.UpdateUser;
+using UserManagement.Application.Features.Users.Queries.GetAllUsers;
+using UserManagement.Application.Features.Users.Queries.GetUserById;
 
 namespace UserManagement.API.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class UsersController : ControllerBase
     {
-        private readonly IUserService _userService;
+        private readonly IMediator _mediator;
 
-        public UsersController(IUserService userService)
+        public UsersController(IMediator mediator)
         {
-            _userService = userService;
+            _mediator = mediator;
         }
 
         [HttpGet]
-        public ActionResult<List<UserDto>> GetAll()
+        public async Task<ActionResult> GetAll()
         {
-            var users = _userService.GetAll();
-            return Ok(users);
+            var query = new GetAllUsersQuery();
+            var result = await _mediator.Send(query);
+            return Ok(result.Value);
         }
 
         [HttpGet("{id}")]
-        public ActionResult<UserDto> GetById(int id)
+        public async Task<ActionResult> GetById(int id)
         {
-            var user = _userService.GetById(id);
+            var query = new GetUserByIdQuery(id);
+            var result = await _mediator.Send(query);
 
-            if (user == null)
-            {
-                return NotFound("User not found");
-            }
+            if (!result.IsSuccess)
+                return NotFound(result.Errors);
 
-            return Ok(user);
+            return Ok(result.Value);
         }
 
         [HttpPost]
-        public ActionResult<UserDto> Create([FromBody] CreateUserDto dto)
+        public async Task<ActionResult> Create([FromBody] CreateUserRequest request)
         {
-            if (dto == null)
-            {
-                return BadRequest("User data is required");
-            }
+            var command = new CreateUserCommand(request);
+            var result = await _mediator.Send(command);
 
-            var createdUser = _userService.Create(dto);
-            return CreatedAtAction(nameof(GetById), new { id = createdUser.Id }, createdUser);
+            if (!result.IsSuccess)
+                return BadRequest(result.Errors);
+
+            return Ok(result.Value);
         }
 
         [HttpPut("{id}")]
-        public ActionResult<UserDto> Update(int id, [FromBody] CreateUserDto dto)
+        public async Task<ActionResult> Update(int id, [FromBody] UpdateUserRequest request)
         {
-            if (dto == null)
-            {
-                return BadRequest("User data is required");
-            }
+            request.Id = id;
 
-            var updatedUser = _userService.Update(id, dto);
+            var command = new UpdateUserCommand(request);
+            var result = await _mediator.Send(command);
 
-            if (updatedUser == null)
-            {
-                return NotFound("User not found");
-            }
+            if (!result.IsSuccess)
+                return NotFound(result.Errors);
 
-            return Ok(updatedUser);
+            return Ok(result.Value);
         }
 
         [HttpDelete("{id}")]
-        public IActionResult Delete(int id)
+        public async Task<ActionResult> Delete(int id)
         {
-            var user = _userService.GetById(id);
+            var command = new DeleteUserCommand(id);
+            var result = await _mediator.Send(command);
 
-            if (user == null)
-            {
-                return NotFound("User not found");
-            }
+            if (!result.IsSuccess)
+                return NotFound(result.Errors);
 
-            _userService.Delete(id);
             return NoContent();
         }
     }
